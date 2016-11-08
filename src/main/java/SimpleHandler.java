@@ -1,22 +1,21 @@
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.security.KeyStore;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.eclipse.jetty.http.HttpVersion;
-import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.jmx.MBeanContainer;
 import org.eclipse.jetty.server.HttpConfiguration;
 import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.SecureRequestCustomizer;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.SslConnectionFactory;
-import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 
@@ -24,7 +23,10 @@ public class SimpleHandler
 {
     public static void main(String[] args) throws Exception
     {
+        MBeanContainer mBeanContainer = new MBeanContainer(ManagementFactory.getPlatformMBeanServer());
+        
         Server server = new Server(8080);
+        
         SslContextFactory ctx = getSslContextFactory();
         HttpConfiguration httpConfig = new HttpConfiguration();
         httpConfig.addCustomizer(new SecureRequestCustomizer());
@@ -37,6 +39,7 @@ public class SimpleHandler
         server.setHandler(new HelloHandler());
 
         server.start();
+        mBeanContainer.beanAdded(null, server);
         System.out.println("running server");
         server.join();
     }
@@ -50,11 +53,11 @@ public class SimpleHandler
         ctx.setCertAlias("1");
         ctx.setTrustStore(ts);
         ctx.setTrustStorePassword("password");
-        ctx.setWantClientAuth(true);
-        ctx.setIncludeProtocols("TLSv1", "TLSv1.1", "TLSv1.2");
-        ctx.setExcludeCipherSuites("(?!TLS_RSA_WITH_AES_256_CBC_SHA)(?!TLS_RSA_WITH_AES_128_CBC_SHA).*");
-        ctx.setIncludeCipherSuites("TLS_RSA_WITH_AES_256_CBC_SHA",
-                                   "TLS_RSA_WITH_AES_128_CBC_SHA");
+//        ctx.setWantClientAuth(true);
+//        ctx.setIncludeProtocols("TLSv1", "TLSv1.1", "TLSv1.2");
+//        ctx.setExcludeCipherSuites("(?!TLS_RSA_WITH_AES_256_CBC_SHA)(?!TLS_RSA_WITH_AES_128_CBC_SHA).*");
+//        ctx.setIncludeCipherSuites("TLS_RSA_WITH_AES_256_CBC_SHA",
+//                                   "TLS_RSA_WITH_AES_128_CBC_SHA");
         return ctx;
     }
 
