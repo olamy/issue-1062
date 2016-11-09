@@ -9,7 +9,8 @@
   <name>issue-1062</name>
 
   <properties>
-    <jetty.version>9.3.14.v20161028</jetty.version>
+    <!--<jetty.version>9.3.14.v20161028</jetty.version>-->
+    <jetty.version>9.4.0-SNAPSHOT</jetty.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 

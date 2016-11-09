@@ -3,11 +3,17 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.security.KeyStore;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.eclipse.jetty.http.HttpVersion;
+import org.eclipse.jetty.io.EndPoint;
 import org.eclipse.jetty.jmx.MBeanContainer;
 import org.eclipse.jetty.server.HttpConfiguration;
 import org.eclipse.jetty.server.HttpConnectionFactory;
@@ -18,6 +24,7 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
 public class SimpleHandler
 {
@@ -25,7 +32,12 @@ public class SimpleHandler
     {
         MBeanContainer mBeanContainer = new MBeanContainer(ManagementFactory.getPlatformMBeanServer());
         
+        // System.setProperty(ManagedSelector.class.getName() + "$SelectorProducer.ExecutionStrategy", ProduceExecuteConsume.class.getName());
+        
         Server server = new Server(8080);
+        QueuedThreadPool qtp = (QueuedThreadPool) server.getThreadPool();
+        qtp.setMaxThreads(20);
+        qtp.setDetailedDump(true);
         
         SslContextFactory ctx = getSslContextFactory();
         HttpConfiguration httpConfig = new HttpConfiguration();
@@ -80,24 +92,45 @@ public class SimpleHandler
 
     static class HelloHandler extends AbstractHandler
     {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(8);
+        
         public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException
         {
             BufferedReader reader = request.getReader();
-            read_data(reader);
+            read_data(baseRequest, reader);
             response.setHeader("Server", "HelloWorld");
             response.setContentType("application/json");
             response.setStatus(200);
             baseRequest.setHandled(true);
             response.getWriter().println("hello");
         }
-
-        private void read_data(BufferedReader reader) {
+    
+        private void read_data(Request request, BufferedReader reader) {
             char[] data = new char[16 * 1024];
-            long total = 0;
-            long justRead = 0;
+            AtomicLong total = new AtomicLong(0);
+    
+            Runnable runnable = () ->
+            {
+                EndPoint ep = request.getHttpChannel().getEndPoint();
+                System.out.printf("total = %,d%n", total.get());
+                System.out.println("EndPoint = " + ep);
+                System.out.println("Connection = " + ep.getConnection());
+            };
+            
             try{
-                while( (justRead = reader.read(data, 0, 16 * 1024)) != -1) {
-                    total += justRead;
+                while(true)
+                {
+                    ScheduledFuture<?> task = scheduler.schedule(runnable, 5, TimeUnit.SECONDS);
+                    int justRead = reader.read(data, 0, data.length);
+                    task.cancel(false);
+                    if(justRead < 0) break;
+                    total.addAndGet(justRead);
+                }
+                
+                long expected = 100 * 1024;
+                if (total.get() != expected)
+                {
+                    System.out.printf("%s | Did not read expected %,d bytes: read %,d bytes%n", request, expected, total.get());
                 }
             } catch (Exception e) {
                 e.printStackTrace();
